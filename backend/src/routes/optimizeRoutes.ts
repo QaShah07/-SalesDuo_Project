@@ -1,14 +1,14 @@
 import { Router } from "express";
-import { runMockOptimization } from "../services/optimizationService";
+import { runOptimization } from "../services/optimizationService";
+import { ScrapeError } from "../services/scrapeService";
 
 const router = Router();
 
 /**
  * POST /api/optimize
  * Body: { asin: string }
- * 
- * This is a skeleton implementation that returns mock data.
- * Replace runMockOptimization with a real implementation later.
+ *
+ * Uses Gemini if GEMINI_API_KEY is set, otherwise falls back to mock data.
  */
 router.post("/", async (req, res) => {
   try {
@@ -17,9 +17,13 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "ASIN is required" });
     }
 
-    const result = await runMockOptimization(asin.trim());
+    const result = await runOptimization(asin.trim());
     res.json(result);
   } catch (err) {
+    if (err instanceof ScrapeError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
+
     console.error("Error in /api/optimize:", err);
     res.status(500).json({ message: "Internal server error" });
   }

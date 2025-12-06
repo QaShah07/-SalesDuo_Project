@@ -1,27 +1,37 @@
-import { fetchProductDetailsMock } from "./scrapeService";
-import { optimizeListingMock } from "./aiService";
+import { fetchProductDetails, type OriginalListing } from "./scrapeService";
+import { optimizeListing, type OptimizedListing } from "./aiService";
 
-export async function runMockOptimization(asin: string) {
-  const original = await fetchProductDetailsMock(asin);
-  const optimized = await optimizeListingMock(original);
+export type OptimizationRecord = {
+  asin: string;
+  timestamp: string;
+  original: OriginalListing;
+  optimized: OptimizedListing;
+};
 
-  const timestamp = new Date().toISOString();
+const historyStore: Record<string, OptimizationRecord[]> = {};
 
-  return {
+export async function runOptimization(asin: string): Promise<OptimizationRecord> {
+  const original = await fetchProductDetails(asin);
+  const optimized = await optimizeListing(original);
+
+  const record: OptimizationRecord = {
     asin,
-    timestamp,
+    timestamp: new Date().toISOString(),
     original,
     optimized
   };
+
+  if (!historyStore[asin]) {
+    historyStore[asin] = [];
+  }
+  historyStore[asin].unshift(record);
+
+  return record;
 }
 
-// Temporary in-memory store for mock history
-const historyStore: Record<string, any[]> = {};
-
-export async function getMockHistory(asin: string) {
+export async function getHistory(asin: string) {
   if (!historyStore[asin]) {
-    // Seed with a single example if none exist yet
-    const firstRun = await runMockOptimization(asin);
+    const firstRun = await runOptimization(asin);
     historyStore[asin] = [firstRun];
   }
 

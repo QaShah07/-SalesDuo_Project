@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { getMockHistory } from "../services/optimizationService";
+import { getHistory } from "../services/optimizationService";
+import { ScrapeError } from "../services/scrapeService";
 
 const router = Router();
 
@@ -16,9 +17,13 @@ router.get("/:asin", async (req, res) => {
       return res.status(400).json({ message: "ASIN is required" });
     }
 
-    const history = await getMockHistory(asin.trim());
+    const history = await getHistory(asin.trim());
     res.json(history);
   } catch (err) {
+    if (err instanceof ScrapeError) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
+
     console.error("Error in /api/history:", err);
     res.status(500).json({ message: "Internal server error" });
   }

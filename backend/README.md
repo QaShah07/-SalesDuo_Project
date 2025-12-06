@@ -11,14 +11,16 @@ cp .env.example .env   # fill in values
 npm run dev            # start dev server on http://localhost:4000
 ```
 
-## Available endpoints (skeleton)
+### Gemini setup
 
-- `POST /api/optimize` — Accepts `{ asin }`, returns mock original + optimized listing.
-- `GET /api/history/:asin` — Returns mock history array for the given ASIN.
+Set `GEMINI_API_KEY` in your `.env` (and optionally `GEMINI_MODEL`, defaults to `gemini-1.5-flash`). If the key is missing or the API call fails, the service falls back to the mock optimizer so the rest of the app still works.
 
-These are **placeholders** so that the frontend works immediately.  
-You can replace the logic in:
+## Available endpoints
+
+- `POST /api/optimize` — Accepts `{ asin }`, uses Gemini when configured, otherwise returns mock optimization.
+- `GET /api/history/:asin` — Returns in-memory history for the given ASIN (seeded on first call).
+
+Still TODO (placeholders in code):
 
 - `src/services/scrapeService.ts` — Implement Amazon scraping.
-- `src/services/aiService.ts` — Call your AI provider and generate real optimizations.
 - `src/db/connection.ts` and `src/db/models/*` — Wire up MySQL and store history.
