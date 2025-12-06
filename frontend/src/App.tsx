@@ -4,6 +4,7 @@ import { ResultView } from "./components/ResultView";
 import { HistoryList } from "./components/HistoryList";
 import { optimizeAsin, getHistory } from "./api/optimize";
 import type { OptimizationResult } from "./types/listing";
+import { deriveFriendlyMessage } from "./utils/errors";
 
 function App() {
   const [current, setCurrent] = useState<OptimizationResult | null>(null);
@@ -28,7 +29,9 @@ function App() {
       setStatus(`Showing ${h.length} run${h.length === 1 ? "" : "s"} for ${asin}.`);
     } catch (e: any) {
       console.error(e);
-      setError(e?.response?.data?.message || "Something went wrong");
+      const msg = e?.response?.data?.message || "Something went wrong";
+      const friendly = deriveFriendlyMessage(msg);
+      setError(friendly);
       setStatus(null);
     } finally {
       setLoading(false);

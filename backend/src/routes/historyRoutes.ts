@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction } from "express";
 import { getHistory } from "../services/optimizationService";
 import { AIError } from "../services/aiService";
 import { ScrapeError } from "../services/scrapeService";
@@ -11,7 +11,7 @@ const router = Router();
  * Returns mock optimization history for a given ASIN.
  * Replace implementation with real DB lookup.
  */
-router.get("/:asin", async (req, res) => {
+router.get("/:asin", async (req, res, next: NextFunction) => {
   try {
     const { asin } = req.params;
     if (!asin) {
@@ -26,7 +26,7 @@ router.get("/:asin", async (req, res) => {
     }
 
     console.error("Error in /api/history:", err);
-    res.status(500).json({ message: "Internal server error" });
+    next(err);
   }
 });
 

@@ -11,11 +11,14 @@ const router = (0, express_1.Router)();
  *
  * Uses Gemini if GEMINI_API_KEY is set, otherwise falls back to mock data.
  */
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
     try {
         const { asin } = req.body;
         if (!asin || typeof asin !== "string") {
             return res.status(400).json({ message: "ASIN is required" });
+        }
+        if (!/^[A-Z0-9]{10}$/i.test(asin.trim())) {
+            return res.status(400).json({ message: "Invalid ASIN format" });
         }
         const result = await (0, optimizationService_1.runOptimization)(asin.trim());
         res.json(result);
@@ -25,7 +28,7 @@ router.post("/", async (req, res) => {
             return res.status(err.statusCode).json({ message: err.message });
         }
         console.error("Error in /api/optimize:", err);
-        res.status(500).json({ message: "Internal server error" });
+        next(err);
     }
 });
 exports.default = router;

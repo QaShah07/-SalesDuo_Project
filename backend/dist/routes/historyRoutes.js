@@ -11,7 +11,7 @@ const router = (0, express_1.Router)();
  * Returns mock optimization history for a given ASIN.
  * Replace implementation with real DB lookup.
  */
-router.get("/:asin", async (req, res) => {
+router.get("/:asin", async (req, res, next) => {
     try {
         const { asin } = req.params;
         if (!asin) {
@@ -25,7 +25,7 @@ router.get("/:asin", async (req, res) => {
             return res.status(err.statusCode).json({ message: err.message });
         }
         console.error("Error in /api/history:", err);
-        res.status(500).json({ message: "Internal server error" });
+        next(err);
     }
 });
 exports.default = router;

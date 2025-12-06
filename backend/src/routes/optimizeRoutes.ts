@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction } from "express";
 import { runOptimization } from "../services/optimizationService";
 import { AIError } from "../services/aiService";
 import { ScrapeError } from "../services/scrapeService";
@@ -11,11 +11,14 @@ const router = Router();
  *
  * Uses Gemini if GEMINI_API_KEY is set, otherwise falls back to mock data.
  */
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next: NextFunction) => {
   try {
     const { asin } = req.body;
     if (!asin || typeof asin !== "string") {
       return res.status(400).json({ message: "ASIN is required" });
+    }
+    if (!/^[A-Z0-9]{10}$/i.test(asin.trim())) {
+      return res.status(400).json({ message: "Invalid ASIN format" });
     }
 
     const result = await runOptimization(asin.trim());
@@ -26,7 +29,7 @@ router.post("/", async (req, res) => {
     }
 
     console.error("Error in /api/optimize:", err);
-    res.status(500).json({ message: "Internal server error" });
+    next(err);
   }
 });
 

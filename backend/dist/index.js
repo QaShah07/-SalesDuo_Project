@@ -8,6 +8,7 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const optimizeRoutes_1 = __importDefault(require("./routes/optimizeRoutes"));
 const historyRoutes_1 = __importDefault(require("./routes/historyRoutes"));
+const errorHandler_1 = require("./middleware/errorHandler");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -17,6 +18,7 @@ app.get("/api/health", (_req, res) => {
 });
 app.use("/api/optimize", optimizeRoutes_1.default);
 app.use("/api/history", historyRoutes_1.default);
+app.use(errorHandler_1.errorHandler);
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);

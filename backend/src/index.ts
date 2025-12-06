@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 
 import optimizeRouter from "./routes/optimizeRoutes";
 import historyRouter from "./routes/historyRoutes";
+import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/optimize", optimizeRouter);
 app.use("/api/history", historyRouter);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 
