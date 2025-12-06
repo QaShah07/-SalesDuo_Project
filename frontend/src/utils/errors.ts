@@ -25,9 +25,8 @@ export function deriveFriendlyMessage(raw: string): string {
     return "Rate limited by provider. Please wait a bit before retrying.";
   }
 
-  // Fallback with input hint if looks like malformed ASIN
-  if (!asinPattern.test(raw) && raw.length > 0) {
-    return "Please enter a valid 10-character ASIN.";
+  if (msg.includes("no supported gemini model")) {
+    return "AI model unavailable for this API key. Set GEMINI_MODEL to a supported model.";
   }
 
   return raw;

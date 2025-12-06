@@ -74,6 +74,15 @@ async function fetchWithPuppeteer(url: string) {
       timeout: scrapeTimeoutMs
     });
     const page = await browser.newPage();
+    await page.setViewport({ width: 1366, height: 768 });
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      // Skip images/stylesheets/fonts to reduce blocks and load faster
+      if (["image", "stylesheet", "font"].includes(req.resourceType())) {
+        return req.abort();
+      }
+      req.continue();
+    });
     await page.setUserAgent(
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
     );
@@ -83,6 +92,13 @@ async function fetchWithPuppeteer(url: string) {
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
     });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: scrapeTimeoutMs });
+    // Give Amazon some time to hydrate dynamic sections, but cap to ~1.2s.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    // Attempt to wait for known selectors if present.
+    await Promise.race([
+      page.waitForSelector("#productTitle", { timeout: 1500 }).catch(() => null),
+      page.waitForSelector("span#productTitle", { timeout: 1500 }).catch(() => null)
+    ]);
     const content = await page.content();
     return content;
   } catch (err) {
@@ -141,18 +157,116 @@ export async function fetchProductDetails(asin: string): Promise<OriginalListing
   }
 
   const $ = load(html || "");
+  // Drop noisy nodes early.
+  $("script, style, noscript").remove();
 
-  const title = $("#productTitle").text().trim();
-  const bullets = $("#feature-bullets li")
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean);
+  const normalize = (val: string) => val.replace(/\s+/g, " ").trim();
+  const isNoise = (val: string) => {
+    const t = val.toLowerCase();
+    return (
+      t.includes("function(") ||
+      t.includes(".aplus") ||
+      t.includes("carousel") ||
+      t.includes("{") ||
+      t.includes("}") ||
+      t.length < 3
+    );
+  };
+
+  const title =
+    normalize($("#productTitle").text()) ||
+    normalize($("span#productTitle").text()) ||
+    normalize($("#title_feature_div span#productTitle").text()) ||
+    normalize($("meta[property='og:title']").attr("content") || "") ||
+    normalize($("title").text());
+
+  const bullets = Array.from(
+    new Set(
+      [
+        ...$("#feature-bullets li span")
+          .map((_, el) => $(el).text())
+          .get(),
+        ...$("#feature-bullets li")
+          .map((_, el) => $(el).text())
+          .get(),
+        ...$("#featurebullets_feature_div li span.a-list-item")
+          .map((_, el) => $(el).text())
+          .get(),
+        ...$("ul.a-unordered-list.a-vertical.a-spacing-mini li span.a-list-item")
+          .map((_, el) => $(el).text())
+          .get(),
+        ...$("#detailBullets_feature_div li span.a-list-item")
+          .map((_, el) => $(el).text())
+          .get(),
+        ...$("ul.a-unordered-list span.a-list-item")
+          .map((_, el) => $(el).text())
+          .get()
+      ]
+        .map(normalize)
+        .filter((b) => b && !isNoise(b))
+    )
+  );
+
+  const ldJsonDescription = (() => {
+    const scripts = $("script[type='application/ld+json']")
+      .map((_, el) => $(el).contents().text())
+      .get();
+    for (const script of scripts) {
+      try {
+        const parsed = JSON.parse(script);
+        const candidate = Array.isArray(parsed)
+          ? parsed.find((item) => item && item["@type"] === "Product")
+          : parsed;
+        if (candidate && typeof candidate.description === "string") {
+          return candidate.description.replace(/\s+/g, " ").trim();
+        }
+      } catch {
+        // ignore malformed JSON blocks
+      }
+    }
+    return "";
+  })();
+
+  const descriptionCandidates = [
+    $("#productDescription").text(),
+    $("#productDescription p").text(),
+    $("#aplus").text(),
+    $("#aplus_feature_div").text(),
+    $("div#aplus_feature_div").text(),
+    $("div#productDescription").text(),
+    $("meta[name='description']").attr("content") || "",
+    ldJsonDescription
+  ]
+    .map(normalize)
+    .filter((d) => d && !isNoise(d))
+    // Deduplicate while preserving order
+    .filter((d, idx, arr) => arr.indexOf(d) === idx);
+
+  const cleanDescription = (text: string) =>
+    text
+      .replace(/previous page/gi, " ")
+      .replace(/next page/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const description =
-    $("#productDescription").text().trim() ||
-    $("#aplus").text().trim() ||
-    "";
+    descriptionCandidates.map(cleanDescription).find((d) => d.length > 20) ||
+    cleanDescription(normalize($("title").text())) ||
+    bullets.join(" ");
 
-  if (!title || bullets.length === 0 || !description) {
+  const looksLikeErrorPage =
+    /page not found/i.test(title) ||
+    /signin|sign in/i.test(title) ||
+    (bullets.length === 0 && /page not found/i.test(description));
+
+  if (looksLikeErrorPage) {
+    throw new ScrapeError(
+      404,
+      `Amazon returned an error page for ASIN ${asin}. Check marketplace or try later.`
+    );
+  }
+
+  if (!title || (bullets.length === 0 && !description)) {
     throw new ScrapeError(
       400,
       "Could not find title/bullets/description. Amazon may have blocked scraping or selectors changed."

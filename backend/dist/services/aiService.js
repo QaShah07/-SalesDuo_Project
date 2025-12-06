@@ -12,7 +12,7 @@ class AIError extends Error {
 }
 exports.AIError = AIError;
 const geminiApiKey = process.env.GEMINI_API_KEY;
-const geminiModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const geminiModel = process.env.GEMINI_MODEL;
 const genAI = geminiApiKey ? new generative_ai_1.GoogleGenerativeAI(geminiApiKey) : null;
 function extractJsonFromResponse(text) {
     const trimmed = text.trim();
@@ -46,31 +46,56 @@ async function optimizeListing(original) {
     if (!genAI) {
         return optimizeListingMock(original);
     }
+    const modelCandidates = Array.from(new Set([
+        geminiModel,
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-pro",
+        "gemini-1.5-pro-001",
+        "gemini-1.0-pro",
+        "gemini-pro"
+    ].filter(Boolean)));
     try {
-        const model = genAI.getGenerativeModel({ model: geminiModel });
-        const prompt = [
-            "You are an expert Amazon listing copywriter and SEO specialist.",
-            "Rewrite the listing to improve click-through rate and search performance while staying factual and compliant.",
-            "Return ONLY valid JSON with keys: title (string), bullets (array of 5 concise bullets), description (short paragraph), keywords (array of 3-8 search terms).",
-            "Do not include prose or Markdown fences outside the JSON.",
-            "",
-            `ASIN: ${original.asin}`,
-            `Title: ${original.title}`,
-            "Bullets:",
-            ...original.bullets.map((b) => `- ${b}`),
-            "Description:",
-            original.description
-        ].join("\n");
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        let parsed;
-        try {
-            parsed = extractJsonFromResponse(text);
+        let lastErr;
+        for (const modelName of modelCandidates) {
+            try {
+                const model = genAI.getGenerativeModel({ model: modelName });
+                const prompt = [
+                    "You are an expert Amazon listing copywriter and SEO specialist.",
+                    "Rewrite the listing to improve click-through rate and search performance while staying factual and compliant.",
+                    "Return ONLY valid JSON with keys: title (string), bullets (array of 5 concise bullets), description (short paragraph), keywords (array of 3-8 search terms).",
+                    "Do not include prose or Markdown fences outside the JSON.",
+                    "",
+                    `ASIN: ${original.asin}`,
+                    `Title: ${original.title}`,
+                    "Bullets:",
+                    ...original.bullets.map((b) => `- ${b}`),
+                    "Description:",
+                    original.description
+                ].join("\n");
+                const result = await model.generateContent(prompt);
+                const text = result.response.text();
+                let parsed;
+                try {
+                    parsed = extractJsonFromResponse(text);
+                }
+                catch {
+                    throw new AIError(502, "AI returned non-JSON output.");
+                }
+                return validateParsedResponse(parsed);
+            }
+            catch (err) {
+                lastErr = err;
+                if (err && typeof err.status === "number" && err.status === 404) {
+                    // Try next model candidate
+                    continue;
+                }
+                throw err;
+            }
         }
-        catch (parseErr) {
-            throw new AIError(502, "AI returned non-JSON output.");
-        }
-        return validateParsedResponse(parsed);
+        console.warn("No supported Gemini model found for this API key. Falling back to mock optimization.");
+        return optimizeListingMock(original);
     }
     catch (err) {
         if (err instanceof AIError) {
