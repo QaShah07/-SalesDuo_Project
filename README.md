@@ -48,3 +48,24 @@ npm run dev  # http://localhost:5173
 ## Notes
 - Errors bubble to the frontend with friendly messages (invalid ASIN, scraping blocked, rate limits, AI formatting issues).
 - Optimizations and history are persisted to MySQL.
+
+## Database design
+- **products**: `id` (PK), `asin` (unique), `title_original`, `bullets_original` (JSON), `description_original`, `created_at`.
+- **optimizations**: `id` (PK), `product_id` (FK → products.id), `title_optimized`, `bullets_optimized` (JSON), `description_optimized`, `keywords` (JSON), `created_at`.
+- Relationship: one product → many optimizations (historical runs ordered by `created_at DESC`).
+
+Schema file: `backend/db/schema.sql` — run via `mysql -u <user> -p -h <host> -P <port> < backend/db/schema.sql`.
+
+## Low-level flow
+- **POST /api/optimize**: validate ASIN → scrape live Amazon HTML (Axios → Puppeteer fallback) → Gemini optimize (with model fallback; mock if unavailable) → upsert product + insert optimization row → return `{ asin, timestamp, original, optimized }`.
+- **GET /api/history/:asin**: lookup product by ASIN → fetch optimizations ordered by `created_at DESC` → map DB rows to API shape.
+- **Error handling**: Scrape/AI errors surfaced with status codes; unknown errors handled by global middleware.
+
+## AI prompt (backend `aiService.ts`)
+- Role: Amazon listing copywriter/SEO specialist.
+- Task: rewrite title, 5 bullets, short description, and 3–8 keywords; stay factual/compliant.
+- Output: JSON only with keys `title`, `bullets`, `description`, `keywords`; rejects markdown or prose.
+
+## Assumptions & notes
+- Scraping may be blocked; Puppeteer/headless with extra headers is used, and falls back when Amazon returns error pages.
+- If no Gemini model is available to the API key, the service falls back to mock optimization so the flow continues.
