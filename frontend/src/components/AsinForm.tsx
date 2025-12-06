@@ -25,6 +25,7 @@ export function AsinForm({ onSubmit, loading }: Props) {
           placeholder="e.g., B07H65KP63"
         />
       </label>
+      <p className="muted small">We fetch details, run Gemini, and save each run to history.</p>
       <button className="button" type="submit" disabled={loading || !asin.trim()}>
         {loading ? "Optimizing..." : "Optimize Listing"}
       </button>

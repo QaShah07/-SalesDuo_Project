@@ -18,14 +18,18 @@ export function ResultView({ result }: Props) {
   return (
     <div className="card">
       <div className="card-header">
-        <h2>Result</h2>
-        <p className="muted">Last optimized at {new Date(timestamp).toLocaleString()}</p>
+        <div>
+          <h2>Result</h2>
+          <p className="muted">
+            ASIN {original.asin} • {new Date(timestamp).toLocaleString()}
+          </p>
+        </div>
       </div>
       <div className="two-column">
         <section>
           <h3>Original</h3>
           <p className="title">{original.title}</p>
-          <ul>
+          <ul className="bullets">
             {original.bullets.map((b, idx) => (
               <li key={idx}>{b}</li>
             ))}
@@ -35,14 +39,20 @@ export function ResultView({ result }: Props) {
         <section>
           <h3>Optimized</h3>
           <p className="title">{optimized.title}</p>
-          <ul>
+          <ul className="bullets">
             {optimized.bullets.map((b, idx) => (
               <li key={idx}>{b}</li>
             ))}
           </ul>
           <p>{optimized.description}</p>
           <h4>Keywords</h4>
-          <p>{optimized.keywords.join(", ")}</p>
+          <div className="keyword-row">
+            {optimized.keywords.map((k, idx) => (
+              <span key={idx} className="keyword-badge">
+                {k}
+              </span>
+            ))}
+          </div>
         </section>
       </div>
     </div>
