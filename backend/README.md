@@ -29,6 +29,13 @@ You can choose the scraper driver:
 
 Use `db/schema.sql` to create the `salesduo` database and required tables. Ensure your `.env` has `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` set correctly. Optimizations and history are stored in MySQL.
 
+### AI prompt
+
+The prompt (in `src/services/aiService.ts`) asks Gemini to:
+- Rewrite title, bullets (5), and description to improve CTR/SEO while staying factual/compliant.
+- Return JSON only with keys: `title`, `bullets`, `description`, `keywords` (3–8 terms).
+- If Gemini output is malformed, the API returns a friendly 502-style message to the frontend.
+
 ## Available endpoints
 
 - `POST /api/optimize` — Accepts `{ asin }`, uses Gemini when configured, otherwise returns mock optimization.
