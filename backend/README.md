@@ -25,12 +25,11 @@ You can choose the scraper driver:
 - `SCRAPE_DRIVER=puppeteer` forces headless browser (slower, better at evading simple blocks).
 `SCRAPE_TIMEOUT_MS` controls request/page timeouts (default 15000).
 
+### MySQL persistence
+
+Use `db/schema.sql` to create the `salesduo` database and required tables. Ensure your `.env` has `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` set correctly. Optimizations and history are stored in MySQL.
+
 ## Available endpoints
 
 - `POST /api/optimize` — Accepts `{ asin }`, uses Gemini when configured, otherwise returns mock optimization.
-- `GET /api/history/:asin` — Returns in-memory history for the given ASIN (seeded on first call).
-
-Still TODO (placeholders in code):
-
-- `src/services/scrapeService.ts` — Implement Amazon scraping.
-- `src/db/connection.ts` and `src/db/models/*` — Wire up MySQL and store history.
+- `GET /api/history/:asin` — Returns persisted history for the given ASIN (ordered newest first).
