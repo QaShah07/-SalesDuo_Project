@@ -8,15 +8,48 @@ export type OptimizedListing = {
   keywords: string[];
 };
 
+export class AIError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const geminiModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const genAI = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
-function extractJsonFromResponse(text: string) {
+type ParsedAIResponse = {
+  title?: unknown;
+  bullets?: unknown;
+  description?: unknown;
+  keywords?: unknown;
+};
+
+function extractJsonFromResponse(text: string): ParsedAIResponse {
   const trimmed = text.trim();
   const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const jsonCandidate = fencedMatch ? fencedMatch[1] : trimmed;
   return JSON.parse(jsonCandidate);
+}
+
+function validateParsedResponse(parsed: ParsedAIResponse): OptimizedListing {
+  if (
+    typeof parsed.title !== "string" ||
+    !Array.isArray(parsed.bullets) ||
+    typeof parsed.description !== "string" ||
+    !Array.isArray(parsed.keywords)
+  ) {
+    throw new AIError(502, "AI returned an unexpected format.");
+  }
+
+  return {
+    title: parsed.title.trim(),
+    bullets: parsed.bullets.map((b) => String(b).trim()).filter(Boolean),
+    description: parsed.description.trim(),
+    keywords: parsed.keywords.map((k) => String(k).trim()).filter(Boolean)
+  };
 }
 
 export async function optimizeListingMock(
@@ -41,8 +74,9 @@ export async function optimizeListing(
     const model = genAI.getGenerativeModel({ model: geminiModel });
     const prompt = [
       "You are an expert Amazon listing copywriter and SEO specialist.",
-      "Rewrite the listing to improve click-through rate and search performance while staying factual.",
-      "Return JSON with keys: title (string), bullets (array of 5 concise bullets), description (short paragraph), keywords (array of 8-12 search terms).",
+      "Rewrite the listing to improve click-through rate and search performance while staying factual and compliant.",
+      "Return ONLY valid JSON with keys: title (string), bullets (array of 5 concise bullets), description (short paragraph), keywords (array of 3-8 search terms).",
+      "Do not include prose or Markdown fences outside the JSON.",
       "",
       `ASIN: ${original.asin}`,
       `Title: ${original.title}`,
@@ -54,15 +88,21 @@ export async function optimizeListing(
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    const parsed = extractJsonFromResponse(text);
 
-    return {
-      title: parsed.title || original.title,
-      bullets: Array.isArray(parsed.bullets) ? parsed.bullets : original.bullets,
-      description: parsed.description || original.description,
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords : []
-    };
+    let parsed: ParsedAIResponse;
+    try {
+      parsed = extractJsonFromResponse(text);
+    } catch (parseErr) {
+      throw new AIError(502, "AI returned non-JSON output.");
+    }
+
+    return validateParsedResponse(parsed);
   } catch (err) {
+    if (err instanceof AIError) {
+      // Bubble up friendly error to the route so the frontend sees it.
+      throw err;
+    }
+
     console.error("Gemini optimization failed, falling back to mock:", err);
     return optimizeListingMock(original);
   }

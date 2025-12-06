@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getHistory } from "../services/optimizationService";
+import { AIError } from "../services/aiService";
 import { ScrapeError } from "../services/scrapeService";
 
 const router = Router();
@@ -20,7 +21,7 @@ router.get("/:asin", async (req, res) => {
     const history = await getHistory(asin.trim());
     res.json(history);
   } catch (err) {
-    if (err instanceof ScrapeError) {
+    if (err instanceof ScrapeError || err instanceof AIError) {
       return res.status(err.statusCode).json({ message: err.message });
     }
 
